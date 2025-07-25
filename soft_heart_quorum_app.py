@@ -1,4 +1,9 @@
+
 import streamlit as st
+from streamlit_autorefresh import st_autorefresh
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+from datetime import datetime
 import random
 
 # --- Constants ---
@@ -10,6 +15,16 @@ SCENARIOS = {
     "Group 4": "A quorum member offended you deeply several months ago. You never addressed it, and now you're both assigned to teach together this Sunday. What do you do?"
 }
 QUESTIONS = [
+    "Did this response reflect a spirit of sincere repentance?",
+    "Does this response align with gospel principles found in the scriptures?",
+    "Does the resolution show thoughtful, prayerful consideration?",
+    "Does it reflect submission to God's will over personal preferences?",
+    "Does it promote forgiveness and reconciliation?",
+    "Does it reflect a willingness to serve even when it's uncomfortable or hard?",
+    "Does it bear or invite a testimony of Christ or gospel truth?",
+    "Does it follow prophetic guidance as taught in the talk?",
+    "Does it show openness to correction, feedback, or new understanding?",
+    "Is there evidence of following promptings or spiritual impressions in this resolution?"
     "Do I sincerely repent each day?",
     "Do I study the scriptures regularly?",
     "Do I pray with intent and listen?",
@@ -22,72 +37,96 @@ QUESTIONS = [
     "Do I recognize and follow spiritual promptings?"
 ]
 
-# --- Session State Init ---
+# --- Config ---
+st.set_page_config(page_title="Soft Heart Quorum App", layout="centered")
+st_autorefresh(interval=10000, key="refresh")  # Refresh every 10s
+
+# --- Session State ---
 if "group" not in st.session_state:
     st.session_state.group = random.choice(GROUPS)
-if "submitted_resolutions" not in st.session_state:
-    st.session_state.submitted_resolutions = {}
+if "personal_scores" not in st.session_state:
+    st.session_state.personal_scores = [0]*10
+if "evaluator_id" not in st.session_state:
+    st.session_state.evaluator_id = str(random.randint(10000, 99999))
 if "scoring_unlocked" not in st.session_state:
     st.session_state.scoring_unlocked = False
-if "completed_scores" not in st.session_state:
-    st.session_state.completed_scores = {}
-if "final_scores" not in st.session_state:
-    st.session_state.final_scores = {}
 
-# --- Title & Password ---
-st.title("🧡 Soften Your Heart – Quorum Scenario Activity")
-pw = st.text_input("🔐 Facilitator password to unlock scoring:", type="password")
+# --- Google Sheets Auth ---
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+creds = ServiceAccountCredentials.from_json_keyfile_name("softheartquorum-f937b3bb153d.json", scope)
+client = gspread.authorize(creds)
+sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1FiEvYoda8_eygtuF9wxE65fmk1rukUP79BjS8r4ivxs")
+
+res_ws = sheet.sheet1
+try:
+    score_ws = sheet.worksheet("Scores")
+except:
+    score_ws = sheet.add_worksheet(title="Scores", rows="100", cols="20")
+    score_ws.append_row(["evaluator_id", "group_scored"] + [f"q{i+1}" for i in range(10)] + ["total", "timestamp"])
+
+# --- UI ---
+st.title("🧡 Soften Your Heart – Quorum Activity App")
+
+# Unlock
+pw = st.text_input("🔐 Facilitator password to unlock group scoring:", type="password")
 if pw == "facilitator123":
-    st.success("Scoring is now enabled.")
     st.session_state.scoring_unlocked = True
-elif pw and not st.session_state.scoring_unlocked:
-    st.error("Incorrect password.")
+    st.success("Scoring is now enabled.")
 
-# --- Group Display ---
-my_group = st.session_state.group
-st.markdown(f"### You are in **{my_group}**")
-st.info(SCENARIOS[my_group])
+# Personal Reflection
+st.header("🧍‍♂️ My Soft Heart Check (Private)")
+with st.form("personal_form"):
+    for i, q in enumerate(QUESTIONS):
+        st.session_state.personal_scores[i] = st.slider(f"{i+1}. {q}", 0, 3, value=st.session_state.personal_scores[i], key=f"personal_{i}")
+    st.form_submit_button("Save My Reflection")
 
-# --- Resolution Submission ---
-st.header("✍️ Your Group's Resolution")
+# Group Resolution Section
+st.header("🤝 Group Resolution")
+group = st.session_state.group
+scenario = SCENARIOS[group]
+st.markdown(f"**You are in {group}**")
+st.info(scenario)
+
+# Load existing resolutions
+all_res = res_ws.get_all_records()
+existing = {row['group']: row['resolution'] for row in all_res}
+submitted = existing.get(group, "")
+
 if not st.session_state.scoring_unlocked:
-    with st.form("resolution_form"):
-        res_text = st.text_area("Write your group's response here:", value=st.session_state.submitted_resolutions.get(my_group, ""))
-        submit = st.form_submit_button("Save / Update")
-        if submit:
-            st.session_state.submitted_resolutions[my_group] = res_text
-            st.success("Resolution saved.")
+    with st.form("res_form"):
+        content = st.text_area("✍️ Your group's response:", value=submitted)
+        if st.form_submit_button("Submit / Update"):
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            updated = False
+            for i, row in enumerate(all_res):
+                if row["group"] == group:
+                    res_ws.update(f"B{i+2}", [[content]])
+                    res_ws.update(f"C{i+2}", [[timestamp]])
+                    updated = True
+            if not updated:
+                res_ws.append_row([group, content, timestamp])
+            st.success("✅ Response saved!")
+
 else:
-    st.write("Your submitted resolution:")
-    st.code(st.session_state.submitted_resolutions.get(my_group, "Not submitted yet."), language="markdown")
-
-# --- Group Resolution Queue ---
-if st.session_state.scoring_unlocked:
-    st.header("🗳️ Score Other Group Resolutions")
+    st.subheader("📝 All Group Responses")
     for g in GROUPS:
-        if g != my_group and g in st.session_state.submitted_resolutions:
-            with st.expander(f"🔍 {g}'s Resolution"):
+        if g in existing:
+            with st.expander(f"{g} – Click to View"):
                 st.markdown(f"**Scenario:** {SCENARIOS[g]}")
-                st.markdown(f"**Resolution:**\n\n{st.session_state.submitted_resolutions[g]}")
+                st.code(existing[g], language="markdown")
 
-                if g not in st.session_state.completed_scores:
-                    with st.form(f"score_{g}"):
-                        scores = []
-                        for i, q in enumerate(QUESTIONS):
-                            scores.append(st.slider(f"{i+1}. {q}", 0, 3, key=f"{g}_q{i}"))
-                        submit_score = st.form_submit_button("Submit Score")
-                        if submit_score:
-                            st.session_state.completed_scores[g] = scores
-                            st.success(f"Scores for {g} recorded.")
-                else:
-                    st.info(f"✅ You have already scored {g}.")
-                    st.write("Your Scores:")
-                    for i, score in enumerate(st.session_state.completed_scores[g]):
-                        st.write(f"{i+1}. {QUESTIONS[i]} — {score}")
-
-    # Final Summary
-    if len(st.session_state.completed_scores) == 3:
-        st.header("📊 Final Score Summary")
-        for g, score_list in st.session_state.completed_scores.items():
-            total = sum(score_list)
-            st.markdown(f"**{g}**: {total} points")
+    st.header("🗳️ Score Other Groups")
+    for g in GROUPS:
+        if g != group and g in existing:
+            scored = score_ws.findall(st.session_state.evaluator_id)
+            already = any(g == row.value for row in scored if row.col == 2)
+            if not already:
+                with st.form(f"score_{g}"):
+                    scores = [st.slider(f"{i+1}. {q}", 0, 3, key=f"{g}_{i}") for i, q in enumerate(QUESTIONS)]
+                    if st.form_submit_button("Submit Score"):
+                        total = sum(scores)
+                        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        score_ws.append_row([st.session_state.evaluator_id, g] + scores + [total, timestamp])
+                        st.success("Score submitted!")
+            else:
+                st.info(f"✅ You’ve already scored {g}")
