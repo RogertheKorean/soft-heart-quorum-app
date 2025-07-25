@@ -6,7 +6,8 @@ import pandas as pd
 # === Initialize Firebase ===
 @st.cache_resource
 def init_firebase():
-    cred = credentials.Certificate(st.secrets["firebase_service_account"])
+    # Use st.secrets and convert to plain dict
+    cred = credentials.Certificate(dict(st.secrets["firebase_service_account"]))
     initialize_app(cred)
     return firestore.client()
 
