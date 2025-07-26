@@ -238,9 +238,17 @@ elif page == "View Scores":
         st.info("No group assessments yet.")
 
     st.subheader("Average Total Group Assessment Score (per Group)")
-    avg_total_per_group = {g: (sum(scores)/len(scores) if scores else 0) for g, scores in group_total_scores.items()}
-    avg_total_df = pd.DataFrame(list(avg_total_per_group.items()), columns=["Group", "Avg Group Assessment Total"])
+    avg_and_count_per_group = [
+        {
+            "Group": g,
+            "Avg Group Assessment Total": (sum(scores) / len(scores) if scores else 0),
+            "# of Assessments": len(scores)
+        }
+        for g, scores in group_total_scores.items()
+    ]
+    avg_total_df = pd.DataFrame(avg_and_count_per_group)
     st.dataframe(avg_total_df)
+
 
 # --- SESSION ADMIN PAGE ---
 elif page == "Session Admin":
