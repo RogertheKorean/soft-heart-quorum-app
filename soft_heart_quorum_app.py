@@ -7,9 +7,9 @@ import pandas as pd
 GROUPS = ["Group 1", "Group 2", "Group 3", "Group 4"]
 SCENARIOS = {
     "Group 1": "You’ve been assigned to minister with someone you strongly disagree with politically. You're now asked to give a joint message together. How do you approach this?",
-    "Group 2": "You’ve felt spiritually numb for months. At church, you often think others are fake or overly judgmental. A new member asks you for help. What do you do?",
+    "Group 2": "You allow your son to play with other children at church, but one day you discover that the other kids are excluding your son and running away from him. How would you address and resolve this situation?",
     "Group 3": "A recent talk by the prophet directly challenged your personal views. You feel conflicted and upset, and now you're leading the lesson on that topic. How do you respond?",
-    "Group 4": "A quorum member offended you deeply several months ago. You never addressed it, and now you're both assigned to teach together this Sunday. What do you do?"
+    "Group 4": "One of the quorum leaders often makes mistakes, and you’re beginning to question if he’s suitable for his church calling. One evening, while having dinner with other family members, you overhear them expressing their concerns about this leader. How would you respond?"
 }
 PERSONAL_QUESTIONS = [
     "Do I sincerely repent each day?",
