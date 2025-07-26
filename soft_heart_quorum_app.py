@@ -131,10 +131,8 @@ if page == "Individual Self-Assessment":
     st.header("🧍 Personal Spiritual Softness Check")
     st.write("Reflect on your heart this week:")
     with st.form("individual_assessment_form"):
-        name = st.text_input("Your Name (required, for record keeping)")
+        name = st.text_input("Your Name (optional, can be left blank)")
         assigned_group = st.session_state.get("assigned_group_for_individual", None)
-        if not name:
-            st.warning("Please enter your name before submitting.")
         score = 0
         slider_vals = []
         for q in PERSONAL_QUESTIONS:
@@ -142,9 +140,8 @@ if page == "Individual Self-Assessment":
             score += val
             slider_vals.append(val)
         submitted = st.form_submit_button("Submit Assessment")
-        if submitted and name:
-            doc_ref = db.collection("sessions").document(session_name).collection("individual_assessments").document(name)
-            doc_ref.set({
+        if submitted:
+            db.collection("sessions").document(session_name).collection("individual_assessments").add({
                 "name": name,
                 "answers": slider_vals,
                 "score": score,
@@ -158,7 +155,7 @@ if page == "Individual Self-Assessment":
                 st.warning("You're on the path — keep softening your heart daily.")
             else:
                 st.error("Time to return to the Lord with full purpose of heart.")
-            st.info("You can update your assessment by resubmitting.")
+            st.info("You may resubmit as many times as you wish. Each entry is anonymous unless you enter your name.")
 
 # --- SUBMIT GROUP RESOLUTION ---
 elif page == "Submit Group Resolution":
@@ -248,7 +245,6 @@ elif page == "View Scores":
     ]
     avg_total_df = pd.DataFrame(avg_and_count_per_group)
     st.dataframe(avg_total_df)
-
 
 # --- SESSION ADMIN PAGE ---
 elif page == "Session Admin":
