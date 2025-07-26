@@ -93,7 +93,6 @@ if "session_name" not in st.session_state:
     st.stop()
 session_name = st.session_state["session_name"]
 
-# --- SIDEBAR ---
 st.sidebar.title("🫀 Soft Heart Quorum")
 page = st.sidebar.radio(
     "Go to",
@@ -124,6 +123,7 @@ def smart_assign_group():
         doc_ref.set({"count": group_counts[assigned] + 1})
         st.session_state["assigned_group"] = assigned
         st.session_state["last_session"] = session_name
+        st.session_state["assigned_group_for_individual"] = assigned  # For self-assessment group tracking
     return st.session_state["assigned_group"]
 
 # --- INDIVIDUAL SELF-ASSESSMENT ---
@@ -131,7 +131,10 @@ if page == "Individual Self-Assessment":
     st.header("🧍 Personal Spiritual Softness Check")
     st.write("Reflect on your heart this week:")
     with st.form("individual_assessment_form"):
-        name = st.text_input("Your Name (optional, for encouragement)")
+        name = st.text_input("Your Name (required, for record keeping)")
+        assigned_group = st.session_state.get("assigned_group_for_individual", None)
+        if not name:
+            st.warning("Please enter your name before submitting.")
         score = 0
         slider_vals = []
         for q in PERSONAL_QUESTIONS:
@@ -139,11 +142,13 @@ if page == "Individual Self-Assessment":
             score += val
             slider_vals.append(val)
         submitted = st.form_submit_button("Submit Assessment")
-        if submitted:
-            db.collection("sessions").document(session_name).collection("individual_assessments").add({
+        if submitted and name:
+            doc_ref = db.collection("sessions").document(session_name).collection("individual_assessments").document(name)
+            doc_ref.set({
                 "name": name,
                 "answers": slider_vals,
                 "score": score,
+                "group": assigned_group,
                 "timestamp": datetime.now()
             })
             st.markdown(f"### 💬 Your Score: **{score}/30**")
@@ -153,6 +158,7 @@ if page == "Individual Self-Assessment":
                 st.warning("You're on the path — keep softening your heart daily.")
             else:
                 st.error("Time to return to the Lord with full purpose of heart.")
+            st.info("You can update your assessment by resubmitting.")
 
 # --- SUBMIT GROUP RESOLUTION ---
 elif page == "Submit Group Resolution":
@@ -160,16 +166,26 @@ elif page == "Submit Group Resolution":
     group = smart_assign_group()
     st.info(f"**You are in: {group}**")
     st.markdown(f"**Scenario:** {SCENARIOS[group]}")
+    doc_ref = db.collection("sessions").document(session_name).collection("group_resolutions").document(group)
+    res_doc = doc_ref.get()
+    prev_text = ""
+    if res_doc.exists:
+        prev = res_doc.to_dict()
+        prev_text = prev.get("resolution", "")
+        ts = prev.get("timestamp")
+        st.info(f"Previous resolution: {prev_text}")
+        if ts:
+            st.caption(f"Last updated: {ts.strftime('%Y-%m-%d %H:%M:%S') if hasattr(ts,'strftime') else ts}")
     with st.form("group_resolution_form"):
         group_name = group
-        resolution_text = st.text_area("What is your group's resolution?", height=100)
+        resolution_text = st.text_area("What is your group's resolution?", value=prev_text, height=100)
         submitted = st.form_submit_button("Submit Resolution")
         if submitted and resolution_text.strip():
-            db.collection("sessions").document(session_name).collection("group_resolutions").document(group_name).set({
+            doc_ref.set({
                 "resolution": resolution_text,
                 "timestamp": datetime.now()
             })
-            st.success("✅ Group resolution submitted.")
+            st.success("✅ Group resolution submitted (updated).")
 
 # --- ASSESS GROUP SCENARIO ---
 elif page == "Assess Group Scenario":
@@ -221,15 +237,24 @@ elif page == "View Scores":
     st.subheader("Individual Assessments")
     ia_docs = db.collection("sessions").document(session_name).collection("individual_assessments").stream()
     rows = []
+    group_scores = {g: [] for g in GROUPS}
     for doc in ia_docs:
         d = doc.to_dict()
         if "name" in d and "answers" in d:
-            rows.append([d.get("name", "")] + d["answers"] + [d["score"]])
+            rows.append([d.get("name", "")] + d["answers"] + [d["score"], d.get("group", "")])
+            g = d.get("group")
+            if g in group_scores:
+                group_scores[g].append(d.get("score", 0))
     if rows:
-        indiv_df = pd.DataFrame(rows, columns=["Name"] + [f"Q{i+1}" for i in range(len(PERSONAL_QUESTIONS))] + ["Total"])
+        indiv_df = pd.DataFrame(rows, columns=["Name"] + [f"Q{i+1}" for i in range(len(PERSONAL_QUESTIONS))] + ["Total", "Group"])
         st.dataframe(indiv_df)
     else:
         st.info("No individual assessments yet.")
+
+    st.subheader("Average Individual Score per Group")
+    avg_per_group = {g: (sum(scores) / len(scores) if scores else 0) for g, scores in group_scores.items()}
+    avg_df = pd.DataFrame(list(avg_per_group.items()), columns=["Group", "Avg Individual Score"])
+    st.dataframe(avg_df)
 
 # --- SESSION ADMIN PAGE ---
 elif page == "Session Admin":
