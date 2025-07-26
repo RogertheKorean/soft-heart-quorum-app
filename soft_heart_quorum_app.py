@@ -220,41 +220,27 @@ elif page == "View Scores":
         st.warning("🔒 Enter correct password to view scores.")
         st.stop()
 
-    st.subheader("Group Assessments")
+    st.subheader("Group Assessments (all submitted scores)")
     ga_docs = db.collection("sessions").document(session_name).collection("group_assessments").stream()
     rows = []
+    group_total_scores = {g: [] for g in GROUPS}
     for doc in ga_docs:
         d = doc.to_dict()
         if "group" in d and "scores" in d:
             rows.append([d["group"]] + d["scores"])
+            g = d["group"]
+            group_total_scores[g].append(sum(d["scores"]))
     if rows:
         group_df = pd.DataFrame(rows, columns=["Group"] + [f"Q{i+1}" for i in range(len(GROUP_ASSESSMENT_QUESTIONS))])
-        group_df["Avg"] = group_df.iloc[:, 1:].mean(axis=1)
+        group_df["Total"] = group_df.iloc[:, 1:11].sum(axis=1)
         st.dataframe(group_df)
     else:
         st.info("No group assessments yet.")
 
-    st.subheader("Individual Assessments")
-    ia_docs = db.collection("sessions").document(session_name).collection("individual_assessments").stream()
-    rows = []
-    group_scores = {g: [] for g in GROUPS}
-    for doc in ia_docs:
-        d = doc.to_dict()
-        if "name" in d and "answers" in d:
-            rows.append([d.get("name", "")] + d["answers"] + [d["score"], d.get("group", "")])
-            g = d.get("group")
-            if g in group_scores:
-                group_scores[g].append(d.get("score", 0))
-    if rows:
-        indiv_df = pd.DataFrame(rows, columns=["Name"] + [f"Q{i+1}" for i in range(len(PERSONAL_QUESTIONS))] + ["Total", "Group"])
-        st.dataframe(indiv_df)
-    else:
-        st.info("No individual assessments yet.")
-
-    st.subheader("Average Individual Score per Group")
-    avg_per_group = {g: (sum(scores) / len(scores) if scores else 0) for g, scores in group_scores.items()}
-    avg_df = pd.DataFrame(list(avg_per_group.items()), columns=["Group", "Avg Individual Score"])
-    st.dataframe(avg_df)
+    st.subheader("Average Total Group Assessment Score (per Group)")
+    avg_total_per_group = {g: (sum(scores)/len(scores) if scores else 0) for g, scores in group_total_scores.items()}
+    avg_total_df = pd.DataFrame(list(avg_total_per_group.items()), columns=["Group", "Avg Group Assessment Total"])
+    st.dataframe(avg_total_df)
 
 # --- SESSION ADMIN PAGE ---
 elif page == "Session Admin":
