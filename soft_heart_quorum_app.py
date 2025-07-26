@@ -129,6 +129,7 @@ def smart_assign_group():
 # --- INDIVIDUAL SELF-ASSESSMENT ---
 if page == "Individual Self-Assessment":
     st.header("🧍 Personal Spiritual Softness Check")
+    st.info("You may resubmit as many times as you wish. Each entry is anonymous unless you enter your name.")
     st.write("Reflect on your heart this week:")
     with st.form("individual_assessment_form"):
         name = st.text_input("Your Name (optional, can be left blank)")
@@ -155,7 +156,6 @@ if page == "Individual Self-Assessment":
                 st.warning("You're on the path — keep softening your heart daily.")
             else:
                 st.error("Time to return to the Lord with full purpose of heart.")
-            st.info("You may resubmit as many times as you wish. Each entry is anonymous unless you enter your name.")
 
 # --- SUBMIT GROUP RESOLUTION ---
 elif page == "Submit Group Resolution":
